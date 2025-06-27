@@ -359,7 +359,7 @@
                     💳 付款問題解決<br>
                     🔄 退換貨服務<br>
                     📞 人工客服轉接<br><br>
-                    🔑 <strong>請先設定您的Claude API密鑰</strong>在程式碼第435行，然後就可以開始真正的AI對話了！<br><br>
+                    
                     有什麼可以幫助您的嗎？
                 </div>
             </div>
@@ -407,18 +407,12 @@
             }
         }
 
-        // 發送訊息
+        // 發送訊息（GitHub Pages 優化版）
         async function sendMessage() {
             const messageInput = document.getElementById('messageInput');
             const message = messageInput.value.trim();
             
             if (!message) return;
-            
-            // 檢查API密鑰
-            if (!apiKey || apiKey === 'sk-ant-api03-your-actual-api-key-here') {
-                alert('⚠️ 請先在程式碼中設定您的Claude API密鑰！\n\n請將第435行的API密鑰替換為您的實際密鑰。');
-                return;
-            }
 
             // 顯示用戶訊息
             addMessage(message, 'user');
@@ -428,33 +422,48 @@
             showTypingIndicator();
             
             try {
-                // 呼叫Claude API
+                // 呼叫 API（會自動回退到本地回應）
                 const response = await callClaudeAPI(message);
                 hideTypingIndicator();
                 addMessage(response, 'ai');
             } catch (error) {
+                console.error('發送訊息錯誤:', error);
                 hideTypingIndicator();
-                addMessage('抱歉，服務暫時不可用，請稍後再試。錯誤訊息: ' + error.message, 'ai');
+                addMessage('系統正在處理中，請稍候...', 'ai');
+                
+                // 即使出錯也提供本地回應
+                setTimeout(async () => {
+                    const fallbackResponse = getSmartResponse(message);
+                    addMessage(fallbackResponse, 'ai');
+                }, 1000);
             }
         }
 
-        // 呼叫Claude API (直接前端呼叫)
+        // ⚠️ GitHub Pages 限制說明：
+        // 1. HTTPS 限制：GitHub Pages 強制 HTTPS，但某些 API 可能有 CORS 限制
+        // 2. 靜態託管：無法運行後端代碼，只能使用前端解決方案
+        // 3. API 密鑰安全：不建議在前端暴露真實 API 密鑰
+
+        // 為 GitHub Pages 優化的 API 呼叫函數
         async function callClaudeAPI(message) {
-            try {
-                const response = await fetch('https://api.anthropic.com/v1/messages', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-api-key': apiKey,
-                        'anthropic-version': '2023-06-01',
-                        'anthropic-dangerous-direct-browser-access': 'true'
-                    },
-                    body: JSON.stringify({
-                        model: 'claude-3-5-sonnet-20241022', // 使用最新的模型
-                        max_tokens: 1000,
-                        messages: [{
-                            role: 'user',
-                            content: `你是一個專業的電商AI客服助手。請用友善、專業的語氣回答客戶問題。客戶問題：${message}
+            // 首先嘗試真實的 Claude API
+            if (apiKey && apiKey !== 'sk-ant-api03-your-actual-api-key-here') {
+                try {
+                    console.log('嘗試呼叫 Claude API...');
+                    
+                    const response = await fetch('https://api.anthropic.com/v1/messages', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': apiKey,
+                            'anthropic-version': '2023-06-01'
+                        },
+                        body: JSON.stringify({
+                            model: 'claude-3-5-sonnet-20241022',
+                            max_tokens: 1000,
+                            messages: [{
+                                role: 'user',
+                                content: `你是一個專業的電商AI客服助手。請用友善、專業的語氣回答客戶問題。客戶問題：${message}
 
 你可以幫助客戶：
 1. 商品諮詢和推薦
@@ -466,30 +475,28 @@
 7. 轉接人工客服
 
 請提供實用、準確的回答，如果需要具體的訂單資訊或個人資訊，請提醒客戶提供相關資訊。請用繁體中文回答。`
-                        }]
-                    })
-                });
+                            }]
+                        })
+                    });
 
-                if (!response.ok) {
-                    const errorData = await response.text();
-                    throw new Error(`API呼叫失敗: ${response.status} - ${errorData}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('✅ Claude API 呼叫成功');
+                        return data.content[0].text;
+                    } else {
+                        throw new Error(`API 錯誤: ${response.status}`);
+                    }
+                    
+                } catch (error) {
+                    console.warn('⚠️ Claude API 呼叫失敗，使用本地智能回應:', error.message);
+                    // 在 GitHub Pages 上，CORS 錯誤很常見，所以回退到本地回應
                 }
-
-                const data = await response.json();
-                return data.content[0].text;
-                
-            } catch (error) {
-                console.error('Claude API 錯誤:', error);
-                
-                // 如果API呼叫失敗，回退到本地智能回應
-                if (error.message.includes('Failed to fetch') || error.message.includes('CORS')) {
-                    console.log('CORS錯誤，使用本地智能回應系統');
-                    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
-                    return getSmartResponse(message);
-                }
-                
-                throw error;
             }
+
+            // 回退到本地智能回應系統（適合 GitHub Pages）
+            console.log('📱 使用本地智能回應系統');
+            await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1200));
+            return getSmartResponse(message);
         }
 
         // 智能回應系統
